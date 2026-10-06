@@ -208,20 +208,43 @@ written.
 
 ---
 
+## Step 7b — Desktop entries + icons (any launcher: rofi, i3, sway, menus, ...)
+
+KiCad installs `.desktop` files and a full hicolor icon set, but its `Exec=`
+lines call the raw binaries (which fail without the launcher fix). Install
+rewritten, launcher-aware entries with:
+
+```bash
+bash /path/to/this/folder/scripts/install-desktop.sh
+```
+
+This puts entries + icons into `~/.local/share/{applications,icons}` and
+rewrites `Exec=` to go through `~/bin/<name>`. Idempotent, uses nothing
+desktop-specific, so it works with any app menu:
+- rofi: `rofi -show drun`
+- i3-dmenu-desktop: `$mod+d`
+- file managers / any GTK menu: picked up automatically
+
+Only the 6 apps KiCad ships entries for are covered (`pl_editor` has no
+official .desktop upstream).
+
+---
+
 ## Step 8 — GUI
 
-The binaries are GTK3, so they need the X server that ships with termux-x11:
+The binaries are GTK3, so they need the X server that ships with termux-x11.
+`install-desktop.sh` handles the icons/menus; the apps themselves just need the
+display (and a WM is helpful but optional):
 
 ```bash
 # in Termux:
-termux-x11 &   # then in termux-x11's own session or your WM (i3 etc.)
-kicad          # project manager
-pcbnew         # board editor
-eeschema       # schematic editor
+termux-x11 &                    # then in the termux-x11 session:
+DISPLAY=:0 kicad                # project manager
+DISPLAY=:0 pcbnew               # board editor
+DISPLAY=:0 eeschema             # schematic editor
 ```
-
-`DISPLAY=:0` is set automatically inside termux-x11 sessions; run the apps from
-there.
+If you run a WM (i3, sway, xfce4, ...) the apps also appear in its launcher /
+menu automatically (`rofi -show drun`, `mod+d`, etc.).
 
 ---
 
