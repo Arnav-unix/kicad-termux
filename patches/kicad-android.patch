@@ -1,0 +1,162 @@
+diff --git a/api/CMakeLists.txt b/api/CMakeLists.txt
+index 3093ecf6..21452db4 100644
+--- a/api/CMakeLists.txt
++++ b/api/CMakeLists.txt
+@@ -115,6 +115,13 @@ target_include_directories( kiapi SYSTEM PUBLIC ${Protobuf_INCLUDE_DIRS} )
+ 
+ target_link_libraries( kiapi protobuf::libprotobuf )
+ 
++# Termux's protobuf is built targeting Android API 24, so its
++# ThreadSafeArena::thread_cache_ is emitted as *emulated* TLS (__emutls_v.*).
++# We compile for API 36, where clang defaults to real TLS, which produces a
++# reference the emutls-based library cannot satisfy at link time. Force the
++# emulated TLS ABI for this target so it matches the prebuilt library.
++target_compile_options( kiapi PRIVATE -femulated-tls )
++
+ # Protobuf 4.0+ generated code uses Abseil symbols.  The upstream
+ # protobuf-config.cmake propagates Abseil through protobuf::libprotobuf
+ # (its protobuf_ABSL_USED_TARGETS list); the bundled FindProtobuf does not.
+diff --git a/common/CMakeLists.txt b/common/CMakeLists.txt
+index 64054c1e..6ece2ac3 100644
+--- a/common/CMakeLists.txt
++++ b/common/CMakeLists.txt
+@@ -1076,6 +1076,15 @@ set( PCB_COMMON_SRCS
+ 
+ add_library( pcbcommon STATIC ${PCB_COMMON_SRCS} )
+ 
++# Termux ships an API-24-era protobuf whose thread_cache_ lives in emulated
++# TLS.  We compile for API 36, where clang defaults to real TLS, which
++# produces a reference the emutls-based library cannot satisfy at link time
++# (_pcbnew.kiface / _cvpcb.kiface both fail to dlopen otherwise).  Force the
++# emulated TLS ABI so it matches the prebuilt library, exactly as for kiapi.
++if( CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
++    target_compile_options( pcbcommon PRIVATE -femulated-tls )
++endif()
++
+ if( KICAD_USE_PCH )
+     target_precompile_headers( pcbcommon
+         PRIVATE
+diff --git a/eeschema/CMakeLists.txt b/eeschema/CMakeLists.txt
+index 7b853e62..92d02e8d 100644
+--- a/eeschema/CMakeLists.txt
++++ b/eeschema/CMakeLists.txt
+@@ -598,7 +598,7 @@ add_library( eeschema_kiface_objects OBJECT
+     ${EESCHEMA_COMMON_SRCS}
+     )
+ 
+-if( KICAD_USE_PCH )
++if( KICAD_USE_PCH AND NOT KICAD_ANDROID_SKIP_PCH )
+     target_precompile_headers( eeschema_kiface_objects
+         PRIVATE
+             <vector>
+diff --git a/include/json_common.h b/include/json_common.h
+index 9ad72a50..6ec50182 100644
+--- a/include/json_common.h
++++ b/include/json_common.h
+@@ -33,7 +33,11 @@
+  *
+  **********************************************************************************************************************/
+ 
+-#ifdef __APPLE__
++// libc++ does not provide std::char_traits for wxUniChar, which nlohmann/json
++// instantiates. KiCad only enabled this shim on Apple, but Termux/Android also
++// uses libc++, so the shim must be enabled there too or json parsing fails to
++// compile with "implicit instantiation of undefined template std::char_traits".
++#if defined( __APPLE__ ) || defined( __ANDROID__ )
+ #if __clang_major__ >= 17
+ 
+ #include <wx/unichar.h>
+diff --git a/pcbnew/CMakeLists.txt b/pcbnew/CMakeLists.txt
+index 276772bb..ff6b0f75 100644
+--- a/pcbnew/CMakeLists.txt
++++ b/pcbnew/CMakeLists.txt
+@@ -815,7 +815,7 @@ add_library( pcbnew_kiface_objects OBJECT
+     ${PCBNEW_SCRIPTING_SRCS}
+     )
+ 
+-if( KICAD_USE_PCH )
++if( KICAD_USE_PCH AND NOT KICAD_ANDROID_SKIP_PCH )
+     target_precompile_headers( pcbnew_kiface_objects
+         PRIVATE
+             <vector>
+diff --git a/pcbnew/router/CMakeLists.txt b/pcbnew/router/CMakeLists.txt
+index e1c1b6ee..7a794a22 100644
+--- a/pcbnew/router/CMakeLists.txt
++++ b/pcbnew/router/CMakeLists.txt
+@@ -101,7 +101,7 @@ set( PCBNEW_PNS_QA_SRCS
+ add_library( pnsrouter STATIC ${PCBNEW_PNS_SRCS} )
+ add_library( pnsrouter_qa STATIC ${PCBNEW_PNS_QA_SRCS} )
+ 
+-if( KICAD_USE_PCH )
++if( KICAD_USE_PCH AND NOT KICAD_ANDROID_SKIP_PCH )
+     target_precompile_headers( pnsrouter
+         PRIVATE
+             <board.h>
+diff --git a/thirdparty/compoundfilereader/compoundfilereader.h b/thirdparty/compoundfilereader/compoundfilereader.h
+index fbab37d2..dc15d156 100644
+--- a/thirdparty/compoundfilereader/compoundfilereader.h
++++ b/thirdparty/compoundfilereader/compoundfilereader.h
+@@ -261,7 +261,10 @@ struct helper
+     }
+ };
+ 
+-typedef std::basic_string<uint16_t> utf16string;
++// char16_t, not uint16_t: on Android uint16_t is 'unsigned short', and libc++
++// has no std::char_traits specialization for that, so std::basic_string<uint16_t>
++// fails to instantiate. char16_t is the standard UTF-16 code unit type.
++typedef std::basic_string<char16_t> utf16string;
+ typedef std::function<int(const COMPOUND_FILE_ENTRY*, const utf16string& dir, int level)>
+     EnumFilesCallback;
+ 
+@@ -379,7 +382,7 @@ private:
+             utf16string newDir = dir;
+             if (dir.length() != 0)
+                 newDir.append(1, '\n');
+-            newDir.append(entry->name, entry->nameLen / 2);
++            newDir.append( reinterpret_cast<const char16_t*>( entry->name ), entry->nameLen / 2 );
+             EnumNodes(GetEntry(entry->childID), currentLevel + 1, maxLevel, newDir, callback);
+         }
+ 
+diff --git a/thirdparty/nanodbc/nanodbc/nanodbc.cpp b/thirdparty/nanodbc/nanodbc/nanodbc.cpp
+index 04f86025..2e7cc4d7 100644
+--- a/thirdparty/nanodbc/nanodbc/nanodbc.cpp
++++ b/thirdparty/nanodbc/nanodbc/nanodbc.cpp
+@@ -386,10 +386,16 @@ constexpr std::size_t size(const T (&array)[N]) noexcept
+ }
+ #endif
+ 
++// Termux's unixODBC is built with SQL_WCHART_CONVERT, so WCHAR (and therefore
++// SQLWCHAR / NANODBC_SQLCHAR) is 'unsigned short'. libc++ ships no
++// std::char_traits specialization for that type, so count the terminator by hand
++// instead of going through std::char_traits.
+ template <std::size_t N>
+ inline std::size_t size(NANODBC_SQLCHAR const (&array)[N]) noexcept
+ {
+-    auto const n = std::char_traits<NANODBC_SQLCHAR>::length(array);
++    std::size_t n = 0;
++    while (n < N && array[n] != 0)
++        ++n;
+     NANODBC_ASSERT(n < N);
+     return n < N ? n : N - 1;
+ }
+@@ -3720,9 +3726,8 @@ std::list<datasource> list_datasources()
+                 "incompatible SQLCHAR and string::value_type");
+ 
+             datasource dsn;
+-            dsn.name = string(&name[0], &name[std::char_traits<NANODBC_SQLCHAR>::length(name)]);
+-            dsn.driver =
+-                string(&driver[0], &driver[std::char_traits<NANODBC_SQLCHAR>::length(driver)]);
++            dsn.name = string(&name[0], &name[size(name)]);
++            dsn.driver = string(&driver[0], &driver[size(driver)]);
+ 
+             dsns.push_back(std::move(dsn));
+             direction = SQL_FETCH_NEXT;
+@@ -3773,7 +3778,7 @@ std::list<driver> list_drivers()
+                 "incompatible SQLCHAR and string::value_type");
+ 
+             driver drv;
+-            drv.name = string(&descr[0], &descr[std::char_traits<NANODBC_SQLCHAR>::length(descr)]);
++            drv.name = string(&descr[0], &descr[size(descr)]);
+ 
+             // Split "Key1=Value1\0Key2=Value2\0\0" into list of key-value pairs
+             auto beg = &attrs[0];
