@@ -1,7 +1,7 @@
 TERMUX_PKG_HOMEPAGE=https://spacenav.sourceforge.net/
 TERMUX_PKG_DESCRIPTION="Free, portable alternative to the 3Dconnexion SDK for interfacing with 3Dconnexion 3D mice"
-TERMUX_PKG_LICENSE="BSD-3-Clause, GPL-3.0"
-TERMUX_PKG_LICENSE_FILE="COPYING"
+TERMUX_PKG_LICENSE="BSD 3-Clause"
+TERMUX_PKG_LICENSE_FILE="LICENSE"
 TERMUX_PKG_MAINTAINER="@termux"
 TERMUX_PKG_VERSION="1.2"
 TERMUX_PKG_SRCURL=https://github.com/FreeSpacenav/libspnav/archive/refs/tags/v${TERMUX_PKG_VERSION}.tar.gz
