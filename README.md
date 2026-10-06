@@ -21,21 +21,28 @@ Two ways to obtain it:
 - ~700 MB free in Termux's data directory.
 
 ### Install
-Run these two commands in Termux:
+One command — the tarball carries its own installer:
 
 ```bash
-wget -qO- https://github.com/Arnav-unix/kicad-termux/releases/latest/download/kicad-prebuilt-aarch64-api36.tar.xz \
-  | tar -xJ -C "$PREFIX/opt/"
-
-wget -qO- https://raw.githubusercontent.com/Arnav-unix/kicad-termux/main/scripts/install-links.sh | bash
+cd ~
+wget -qO- https://github.com/Arnav-unix/kicad-termux/releases/latest/download/kicad-prebuilt-aarch64-api36.tar.xz | tar -xJ
+bash install.sh
 ```
 
-What this does:
+What `install.sh` does:
 
-| Command | Effect |
+| Step | Effect |
 |---|---|
-| first | extracts the binaries + libraries into `$PREFIX/opt/` (kicad, occt, spnav, ngspice) |
-| second | creates `~/bin/` wrappers that fix KiCad's library paths, symlinks every binary, and sets up `kicad-cli` on PATH |
+| copy | installs the `kicad`, `occt`, `spnav`, `ngspice` trees into `$PREFIX/opt/` |
+| link | puts `kicad`, `pcbnew`, `eeschema`, ... on your **PATH** via `$PREFIX/bin` (a self-contained launcher fixes the library paths) |
+| desktop | installs `.desktop` entries + icons for your launcher/menu |
+
+Re-run it to reinstall/upgrade (idempotent). Uninstall with `bash $PREFIX/opt/uninstall.sh`.
+
+Offline/SD-card route (same tarball, local):
+```bash
+cd ~ && tar -xJf /sdcard/KiCad-Termux/prebuilt/kicad-prebuilt-aarch64-api36.tar.xz && bash install.sh
+```
 
 ### Verify
 
@@ -57,6 +64,9 @@ eeschema   # schematic editor
 ```
 
 Optional — app menu / launcher entries with icons:
+
+`install.sh` already installs these (into `~/.local/share`). Only needed for older
+installations made before v1.1.0:
 
 ```bash
 wget -qO- https://raw.githubusercontent.com/Arnav-unix/kicad-termux/main/scripts/install-desktop.sh | bash
@@ -163,6 +173,7 @@ scripts/
   supervise.sh  chk.sh          resilient build runner + status
   install-links.sh              launcher/~/bin setup for an extracted install
   install-desktop.sh            .desktop entries + icons
+  install.sh  uninstall.sh      one-shot installer / remover (bundled in the prebuilt v1.1.0+ tarball)
   kicad-launch.sh               LD_LIBRARY_PATH fixer (used by install-links)
 patches/
   kicad-android.patch           all source modifications (git apply)
