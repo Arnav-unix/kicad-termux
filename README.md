@@ -1,5 +1,7 @@
 # KiCad 10.0.6 for Termux (Android / aarch64)
 
+> Vibe-coded & vibe-compiled. No warranty, but it works.
+
 A native build of KiCad for Android, compiled with Termux's bionic toolchain
 (no proot, no chroot required). Includes the full CLI (`kicad-cli`) and the
 GTK3 GUI suite (`kicad`, `pcbnew`, `eeschema`, `gerbview`, others).
