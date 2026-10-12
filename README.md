@@ -82,6 +82,12 @@ wget -qO- https://raw.githubusercontent.com/Arnav-unix/kicad-termux/main/scripts
 - Only for **Android API 36+, aarch64**. Other targets must rebuild from source
   (lower the `--target=...-androidN` triple in `configure-kicad.sh` first).
 
+> **Heads up — this already happened.** Upgrading `wxwidgets` to **3.3.4** breaks
+> the prebuilt binaries: `wxDialog::IsModal()` and `wxGLCanvas::EGL()` were
+> removed/changed, so `kicad` and `kicad-cli` fail with `cannot locate symbol`.
+> See **[docs/WX-NOTES.md](docs/WX-NOTES.md)** for the details, the affected
+> symbols, how to rebuild, and the `kopen` workaround for the file dialog.
+
 ---
 
 ## Building from source
